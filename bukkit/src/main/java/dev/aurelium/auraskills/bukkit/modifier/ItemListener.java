@@ -25,6 +25,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.ItemStack;
@@ -319,6 +320,78 @@ public class ItemListener implements Listener {
         for (Trait trait : traitsToReload) {
             statManager.reload(plugin.getUser(player), trait);
         }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void OnConsume(PlayerItemConsumeEvent event){
+        if (event.isCancelled()) {
+            return;
+        }
+        Player player = event.getPlayer();
+        User playerData = plugin.getUser(player);
+
+        ItemStack consumedItem = event.getItem();
+        SkillsItem skillItem = new SkillsItem(consumedItem,plugin);
+        boolean meetsRequirements = skillItem.meetsRequirements(ModifierType.ITEM, player);
+
+        Set<Stat> statsToReload = new HashSet<>();
+        Set<Trait> traitsToReload = new HashSet<>();
+
+        for (StatModifier modifier : skillItem.getStatModifiers(ModifierType.ITEM)) {
+            // Removes the old modifier from main hand
+            StatModifier consumedModifier = new StatModifier(modifier.name() + ".Consumed", modifier.stat(), modifier.value());
+            // Add the existing modifier to the new one
+            if (playerData.getStatModifier(consumedModifier.name()) != null){
+                consumedModifier = new StatModifier(consumedModifier.name(),modifier.stat(),
+                        modifier.value()+playerData.getStatModifier(consumedModifier.name()).value());
+                playerData.removeStatModifier(consumedModifier.name());
+            }
+            playerData.removeStatModifier(modifier.name(), false);
+            // Add new one if meets requirements
+            if (meetsRequirements) {
+                playerData.addStatModifier(consumedModifier, false);
+            }
+            // Reload check stuff
+            statsToReload.add(modifier.stat());
+        }
+        for (TraitModifier modifier : skillItem.getTraitModifiers(ModifierType.ITEM)) {
+            TraitModifier consumedModifier = new TraitModifier(modifier.name() + ".Consumed", modifier.trait(), modifier.value());
+            // Add the existing modifier to the new one
+            if (playerData.getTraitModifier(consumedModifier.name()) != null){
+                consumedModifier = new TraitModifier(consumedModifier.name(),modifier.trait(),
+                        modifier.value()+playerData.getTraitModifier(consumedModifier.name()).value());
+                playerData.removeTraitModifier(consumedModifier.name());
+            }
+            playerData.removeTraitModifier(modifier.name(), false);
+            // Add new one if meets requirements
+            if (meetsRequirements) {
+                playerData.addTraitModifier(consumedModifier, false);
+            }
+            // Reload check stuff
+            traitsToReload.add(modifier.trait());
+        }
+        for (Multiplier multiplier : skillItem.getMultipliers(ModifierType.ITEM)) {
+            Multiplier consumedModifier = new Multiplier(multiplier.name() + ".Consumed", multiplier.skill(), multiplier.value());
+            // Add the existing modifier to the new one
+            if (playerData.getMultipliers().get(consumedModifier.name()) != null){
+                consumedModifier = new Multiplier(consumedModifier.name(),consumedModifier.skill(),
+                        multiplier.value()+playerData.getMultipliers().get(consumedModifier.name()).value());
+                playerData.removeMultiplier(consumedModifier.name());
+            }
+            playerData.removeMultiplier(multiplier.name());
+            if (meetsRequirements) {
+                playerData.addMultiplier(consumedModifier);
+            }
+        }
+
+        // Reload stats
+        for (Stat stat : statsToReload) {
+            statManager.reloadStat(plugin.getUser(player), stat);
+        }
+        for (Trait trait : traitsToReload) {
+            statManager.reload(plugin.getUser(player), trait);
+        }
+
     }
 
     public void scheduleOffHandTask() {
