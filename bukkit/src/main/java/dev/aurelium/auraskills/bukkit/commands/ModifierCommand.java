@@ -9,8 +9,14 @@ import dev.aurelium.auraskills.bukkit.stat.StatFormat;
 import dev.aurelium.auraskills.common.message.type.CommandMessage;
 import dev.aurelium.auraskills.common.user.User;
 import dev.aurelium.auraskills.api.util.NumberUtil;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.command.BlockCommandSender;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+
+import me.clip.placeholderapi.PlaceholderAPI;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,12 +34,32 @@ public class ModifierCommand extends BaseCommand {
         this.plugin = plugin;
         this.format = new StatFormat(plugin);
     }
-
+    public static Location locationFromCommandSender(CommandSender cs) {
+        return cs instanceof BlockCommandSender bcs ? bcs.getBlock().getLocation()
+                : cs instanceof Entity ecs ? ecs.getLocation() : null;
+    }
     @Subcommand("add")
     @CommandPermission("auraskills.command.modifier")
     @CommandCompletion("@players @stats @nothing @nothing true true")
     @Description("Adds a stat modifier to a player.")
-    public void onAdd(CommandSender sender, @Flags("other") Player player, Stat stat, String name, double value, @Default("false") boolean silent, @Default("false") boolean stack) {
+    public void onAdd(CommandSender sender, @Flags("other") String playerUsername, Stat stat, String name, double value, @Default("false") boolean silent, @Default("false") boolean stack) {
+
+        Player player = null;
+        if (!playerUsername.startsWith("@p"))
+            player = Bukkit.getPlayerExact(playerUsername);
+        else {
+            double closestInt = Double.MAX_VALUE;
+            Entity closest = null;
+            Location senderLocation = locationFromCommandSender(sender);
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                Location playerLocation = p.getLocation();
+                if (playerLocation.distanceSquared(senderLocation) < closestInt){
+                    closestInt = playerLocation.distanceSquared(senderLocation);
+                    player = p;
+                }
+            }
+        }
+
         User user = plugin.getUser(player);
         Locale locale = user.getLocale();
         StatModifier modifier = new StatModifier(name, stat, value);
