@@ -344,6 +344,10 @@ public class ItemListener implements Listener {
             if (playerData.getStatModifier(consumedModifier.name()) != null){
                 consumedModifier = new StatModifier(consumedModifier.name(),modifier.stat(),
                         modifier.value()+playerData.getStatModifier(consumedModifier.name()).value());
+                if (consumedModifier.value() > 50)
+                    consumedModifier = new StatModifier(consumedModifier.name(),
+                            consumedModifier.stat(),
+                            50);
                 playerData.removeStatModifier(consumedModifier.name());
             }
             playerData.removeStatModifier(modifier.name(), false);
@@ -363,6 +367,10 @@ public class ItemListener implements Listener {
                 playerData.removeTraitModifier(consumedModifier.name());
             }
             playerData.removeTraitModifier(modifier.name(), false);
+            if (consumedModifier.value() > 50)
+                consumedModifier = new TraitModifier(consumedModifier.name(),
+                        consumedModifier.trait(),
+                        50);
             // Add new one if meets requirements
             if (meetsRequirements) {
                 playerData.addTraitModifier(consumedModifier, false);
