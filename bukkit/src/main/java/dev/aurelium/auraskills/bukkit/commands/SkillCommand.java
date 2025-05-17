@@ -25,7 +25,7 @@ public class SkillCommand extends BaseCommand {
     @Subcommand("setlevel")
     @CommandCompletion("@players @skills")
     @CommandPermission("auraskills.command.skill.setlevel")
-    @Description("Sets a specific skill to a level for a player.")
+    @Description("%desc_skill_setlevel")
     public void onSkillSetlevel(CommandSender sender, @Flags("other") Player player, Skill skill, int level) {
         User user = plugin.getUser(player);
         Locale locale = user.getLocale();
@@ -35,12 +35,12 @@ public class SkillCommand extends BaseCommand {
                 int oldLevel = user.getSkillLevel(skill);
                 user.setSkillLevel(skill, level);
                 user.setSkillXp(skill, 0);
-                plugin.getStatManager().updateStats(user);
+                plugin.getStatManager().recalculateStats(user);
                 plugin.getRewardManager().updatePermissions(user);
                 plugin.getRewardManager().applyRevertCommands(user, skill, oldLevel, level);
                 plugin.getRewardManager().applyLevelUpCommands(user, skill, oldLevel, level);
                 // Reload items and armor to check for newly met requirements
-                this.plugin.getModifierManager().reloadPlayer(player);
+                plugin.getModifierManager().applyModifiers(player, true);
                 sender.sendMessage(plugin.getPrefix(locale) + plugin.getMsg(CommandMessage.SKILL_SETLEVEL_SET, locale)
                         .replace("{skill}", skill.getDisplayName(locale))
                         .replace("{level}", String.valueOf(level))
@@ -59,7 +59,7 @@ public class SkillCommand extends BaseCommand {
     @Subcommand("setall")
     @CommandCompletion("@players")
     @CommandPermission("auraskills.command.skill.setlevel")
-    @Description("Sets all of a player's skills to a level.")
+    @Description("%desc_skill_setall")
     public void onSkillSetall(CommandSender sender, @Flags("other") Player player, int level) {
         User user = plugin.getUser(player);
         Locale locale = user.getLocale();
@@ -70,14 +70,15 @@ public class SkillCommand extends BaseCommand {
                     int oldLevel = user.getSkillLevel(skill);
                     user.setSkillLevel(skill, level);
                     user.setSkillXp(skill, 0);
-                    // Reload items and armor to check for newly met requirements
-                    plugin.getModifierManager().reloadPlayer(player);
+
                     plugin.getRewardManager().applyRevertCommands(user, skill, oldLevel, level);
                     plugin.getRewardManager().applyLevelUpCommands(user, skill, oldLevel, level);
                 }
             }
-            plugin.getStatManager().updateStats(user);
+            plugin.getStatManager().recalculateStats(user);
+            plugin.getModifierManager().applyModifiers(player, true);
             plugin.getRewardManager().updatePermissions(user);
+
             sender.sendMessage(plugin.getPrefix(locale) + plugin.getMsg(CommandMessage.SKILL_SETALL_SET, locale)
                     .replace("{level}", String.valueOf(level))
                     .replace("{player}", player.getName()));
@@ -93,7 +94,7 @@ public class SkillCommand extends BaseCommand {
     @Subcommand("reset")
     @CommandCompletion("@players @skills")
     @CommandPermission("auraskills.command.skill.reset")
-    @Description("Resets all skills or a specific skill to the starting level for a player.")
+    @Description("%desc_skill_reset")
     public void onSkillReset(CommandSender sender, @Flags("other") Player player, @Optional Skill skill) {
         User user = plugin.getUser(player);
         Locale locale = user.getLocale();
@@ -101,7 +102,7 @@ public class SkillCommand extends BaseCommand {
             if (skill.isEnabled()) {
                 int level = user.resetSkill(skill);
                 // Reload items and armor to check for newly met requirements
-                this.plugin.getModifierManager().reloadPlayer(player);
+                plugin.getModifierManager().applyModifiers(player, true);
                 sender.sendMessage(plugin.getPrefix(locale) + plugin.getMsg(CommandMessage.SKILL_SETLEVEL_SET, locale)
                         .replace("{skill}", skill.getDisplayName(locale))
                         .replace("{level}", String.valueOf(level))
@@ -114,6 +115,7 @@ public class SkillCommand extends BaseCommand {
             for (Skill s : plugin.getSkillRegistry().getValues()) {
                 level = user.resetSkill(s);
             }
+            plugin.getModifierManager().applyModifiers(player, true);
             sender.sendMessage(plugin.getPrefix(locale) + plugin.getMsg(CommandMessage.SKILL_SETALL_SET, locale)
                     .replace("{level}", String.valueOf(level))
                     .replace("{player}", player.getName()));

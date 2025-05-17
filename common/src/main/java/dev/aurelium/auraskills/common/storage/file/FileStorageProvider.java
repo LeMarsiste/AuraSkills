@@ -8,6 +8,8 @@ import dev.aurelium.auraskills.api.stat.Stat;
 import dev.aurelium.auraskills.api.stat.StatModifier;
 import dev.aurelium.auraskills.api.trait.Trait;
 import dev.aurelium.auraskills.api.trait.TraitModifier;
+import dev.aurelium.auraskills.api.util.AuraSkillsModifier;
+import dev.aurelium.auraskills.api.util.AuraSkillsModifier.Operation;
 import dev.aurelium.auraskills.common.AuraSkillsPlugin;
 import dev.aurelium.auraskills.common.mana.ManaAbilityData;
 import dev.aurelium.auraskills.common.region.BlockPosition;
@@ -22,6 +24,7 @@ import org.jetbrains.annotations.NotNull;
 import org.spongepowered.configurate.CommentedConfigurationNode;
 import org.spongepowered.configurate.ConfigurateException;
 import org.spongepowered.configurate.ConfigurationNode;
+import org.spongepowered.configurate.serialize.SerializationException;
 import org.spongepowered.configurate.yaml.NodeStyle;
 import org.spongepowered.configurate.yaml.YamlConfigurationLoader;
 
@@ -64,7 +67,8 @@ public class FileStorageProvider extends StorageProvider {
         // Load locale
         String localeString = root.node("locale").getString();
         if (localeString != null) {
-            Locale locale = new Locale(localeString);
+            localeString = localeString.replace("_", "-");
+            Locale locale = Locale.forLanguageTag(localeString);
             user.setLocale(locale);
         }
 
@@ -73,10 +77,22 @@ public class FileStorageProvider extends StorageProvider {
         user.setMana(mana);
 
         // Load stat modifiers
-        loadStatModifiers(root.node("stat_modifiers")).forEach((name, modifier) -> user.addStatModifier(modifier, false));
+        loadStatModifiers(root.node("stat_modifiers")).forEach((name, modifier) -> {
+            if (modifier.isTemporary()) {
+                user.getUserStats().addTemporaryStatModifier(modifier, false, modifier.getExpirationTime());
+            } else {
+                user.addStatModifier(modifier, false);
+            }
+        });
 
         // Load trait modifiers
-        loadTraitModifiers(root.node("trait_modifiers")).forEach((name, modifier) -> user.addTraitModifier(modifier, false));
+        loadTraitModifiers(root.node("trait_modifiers")).forEach((name, modifier) -> {
+            if (modifier.isTemporary()) {
+                user.getUserStats().addTemporaryTraitModifier(modifier, false, modifier.getExpirationTime());
+            } else {
+                user.addTraitModifier(modifier, false);
+            }
+        });
 
         // Load ability data
         loadAbilityData(root.node("ability_data"), user);
@@ -118,18 +134,22 @@ public class FileStorageProvider extends StorageProvider {
 
     private Map<String, StatModifier> loadStatModifiers(ConfigurationNode node) {
         Map<String, StatModifier> statModifiers = new HashMap<>();
+
         node.childrenMap().forEach((index, modifierNode) -> {
             String name = modifierNode.node("name").getString();
             String statName = modifierNode.node("stat").getString();
             double value = modifierNode.node("value").getDouble();
+            String operationName = modifierNode.node("operation").getString(Operation.ADD.toString());
 
             if (name != null && statName != null) {
                 NamespacedId statId = NamespacedId.fromString(statName);
                 Stat stat = plugin.getStatRegistry().getOrNull(statId);
                 if (stat == null) return;
 
-                StatModifier statModifier = new StatModifier(name, stat, value);
+                StatModifier statModifier = new StatModifier(name, stat, value, Operation.parse(operationName));
                 statModifiers.put(name, statModifier);
+
+                loadTemporary(statModifier, modifierNode);
             }
         });
         return statModifiers;
@@ -141,17 +161,31 @@ public class FileStorageProvider extends StorageProvider {
             String name = modifierNode.node("name").getString();
             String traitName = modifierNode.node("trait").getString();
             double value = modifierNode.node("value").getDouble();
+            String operationName = modifierNode.node("operation").getString(Operation.ADD.toString());
 
             if (name != null && traitName != null) {
                 NamespacedId traitId = NamespacedId.fromString(traitName);
                 Trait trait = plugin.getTraitRegistry().getOrNull(traitId);
                 if (trait == null) return;
 
-                TraitModifier traitModifier = new TraitModifier(name, trait, value);
+                TraitModifier traitModifier = new TraitModifier(name, trait, value, Operation.parse(operationName));
                 traitModifiers.put(name, traitModifier);
+
+                loadTemporary(traitModifier, modifierNode);
             }
         });
         return traitModifiers;
+    }
+
+    private void loadTemporary(AuraSkillsModifier<?> modifier, ConfigurationNode modifierNode) {
+        long expirationTime = modifierNode.node("expiration_time").getLong(0);
+        if (expirationTime != 0) {
+            modifier.makeTemporary(expirationTime, false);
+        }
+        long remainingDuration = modifierNode.node("remaining_duration").getLong(0);
+        if (remainingDuration != 0) {
+            modifier.makeTemporary(System.currentTimeMillis() + remainingDuration, true);
+        }
     }
 
     private void loadAbilityData(ConfigurationNode node, User user) {
@@ -217,6 +251,7 @@ public class FileStorageProvider extends StorageProvider {
         Path path = Path.of(dataDirectory, uuid.toString() + ".yml");
 
         YamlConfigurationLoader loader = YamlConfigurationLoader.builder()
+                .defaultOptions(opts -> opts.shouldCopyDefaults(false))
                 .path(path)
                 .build();
 
@@ -299,7 +334,7 @@ public class FileStorageProvider extends StorageProvider {
 
         // Apply locale
         if (user.hasLocale()) {
-            root.node("locale").set(user.getLocale().toString());
+            root.node("locale").set(user.getLocale().toLanguageTag());
         }
 
         // Apply mana
@@ -389,6 +424,7 @@ public class FileStorageProvider extends StorageProvider {
         // Create a Yaml loader
         YamlConfigurationLoader loader = YamlConfigurationLoader.builder()
                 .path(Path.of(dataDirectory, uuid.toString() + ".yml"))
+                .defaultOptions(opts -> opts.shouldCopyDefaults(false))
                 .nodeStyle(NodeStyle.BLOCK)
                 .indent(2)
                 .build();
@@ -399,10 +435,15 @@ public class FileStorageProvider extends StorageProvider {
     private void applyStatModifiers(ConfigurationNode node, Map<String, StatModifier> modifiers) throws Exception {
         int index = 0;
         for (StatModifier modifier : modifiers.values()) {
+            if (modifier.isNonPersistent()) {
+                continue;
+            }
             ConfigurationNode modifierNode = node.node(String.valueOf(index));
             modifierNode.node("name").set(modifier.name());
             modifierNode.node("stat").set(modifier.stat().getId().toString());
+            modifierNode.node("operation").set(modifier.operation().toString());
             modifierNode.node("value").set(modifier.value());
+            applyTemporaryModifier(modifier, modifierNode);
             index++;
         }
     }
@@ -410,11 +451,26 @@ public class FileStorageProvider extends StorageProvider {
     private void applyTraitModifiers(ConfigurationNode node, Map<String, TraitModifier> modifiers) throws Exception {
         int index = 0;
         for (TraitModifier modifier : modifiers.values()) {
+            if (modifier.isNonPersistent()) {
+                continue;
+            }
             ConfigurationNode modifierNode = node.node(String.valueOf(index));
             modifierNode.node("name").set(modifier.name());
             modifierNode.node("trait").set(modifier.trait().getId().toString());
+            modifierNode.node("operation").set(modifier.operation().toString());
             modifierNode.node("value").set(modifier.value());
+            applyTemporaryModifier(modifier, modifierNode);
             index++;
+        }
+    }
+
+    private void applyTemporaryModifier(AuraSkillsModifier<?> modifier, ConfigurationNode modifierNode) throws SerializationException {
+        if (modifier.isTemporary()) {
+            if (modifier.isPauseOffline()) { // Pause counting when offline, store remaining duration
+                modifierNode.node("remaining_duration").set(modifier.getExpirationTime() - System.currentTimeMillis());
+            } else { // Keep counting down while offline, store expiration time
+                modifierNode.node("expiration_time").set(modifier.getExpirationTime());
+            }
         }
     }
 

@@ -4,6 +4,7 @@ import dev.aurelium.auraskills.api.ability.Abilities;
 import dev.aurelium.auraskills.api.stat.StatModifier;
 import dev.aurelium.auraskills.api.stat.Stats;
 import dev.aurelium.auraskills.api.event.skill.XpGainEvent;
+import dev.aurelium.auraskills.api.util.AuraSkillsModifier.Operation;
 import dev.aurelium.auraskills.bukkit.AuraSkills;
 import dev.aurelium.auraskills.bukkit.ability.AbilityImpl;
 import dev.aurelium.auraskills.bukkit.user.BukkitUser;
@@ -86,6 +87,7 @@ public class EnchantingAbilities extends AbilityImpl {
         }
     }
 
+    @SuppressWarnings("deprecation")
     private void enchantedStrength() {
         var ability = Abilities.ENCHANTED_STRENGTH;
         String MODIFIER_NAME = "AbilityModifier-EnchantedStrength";
@@ -111,7 +113,7 @@ public class EnchantingAbilities extends AbilityImpl {
                             enchantCount++;
                         }
                         if (enchantCount > 0) {
-                            StatModifier modifier = new StatModifier(MODIFIER_NAME, Stats.STRENGTH, strengthPerType * enchantCount);
+                            StatModifier modifier = new StatModifier(MODIFIER_NAME, Stats.STRENGTH, strengthPerType * enchantCount, Operation.ADD);
                             user.addStatModifier(modifier, false);
                         }
                     } else {

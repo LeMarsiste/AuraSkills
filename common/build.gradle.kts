@@ -13,7 +13,7 @@ dependencies {
     api("net.kyori:adventure-api:4.17.0")
     api("co.aikar:acf-core:0.5.1-SNAPSHOT")
     api("net.kyori:adventure-text-serializer-legacy:4.17.0")
-    api("com.github.Archy-X:Polyglot:1.2.1") {
+    api("com.github.Archy-X:Polyglot:1.2.3") {
         exclude("org.spongepowered", "configurate-yaml")
     }
     api("com.ezylang:EvalEx:3.3.0")
@@ -29,12 +29,13 @@ dependencies {
     compileOnly("com.google.code.gson:gson:2.10")
     compileOnly("net.luckperms:api:5.4")
     testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation(platform("org.junit:junit-bom:5.11.0-M1"))
     testImplementation("org.yaml:snakeyaml:2.2")
 }
 
 val compiler = javaToolchains.compilerFor {
-    languageVersion = JavaLanguageVersion.of(17)
+    languageVersion = JavaLanguageVersion.of(21)
 }
 
 tasks.withType<JavaCompile> {
@@ -52,6 +53,6 @@ tasks {
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }

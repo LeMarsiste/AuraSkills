@@ -15,18 +15,19 @@ repositories {
 
 dependencies {
     api(project(":api"))
-    api("dev.aurelium:slate:1.1.9") {
+    api("dev.aurelium:slate:1.1.13") {
         exclude("org.yaml", "snakeyaml")
         exclude("org.spongepowered", "configurate-yaml")
     }
-    // api(files("../../Slate/build/libs/Slate-1.1.8-all.jar"))
+    // api(files("../../Slate/build/libs/Slate-1.1.12-all.jar"))
     compileOnly("org.jetbrains:annotations:24.1.0")
-    compileOnly("org.spigotmc:spigot-api:1.21.1-R0.1-SNAPSHOT")
+    compileOnly("org.spigotmc:spigot-api:1.21.5-R0.1-SNAPSHOT")
 }
 
 tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
-    options.compilerArgs.add("-parameters")
+    options.compilerArgs.addAll(listOf("-parameters", "-Xlint:-options"))
+    options.release.set(8)
 }
 
 tasks {
@@ -46,7 +47,9 @@ tasks {
 java {
     withJavadocJar()
     withSourcesJar()
-    sourceCompatibility = JavaVersion.VERSION_1_8
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }
 
 if (project.hasProperty("sonatypeUsername") && project.hasProperty("sonatypePassword")) {
@@ -99,7 +102,6 @@ if (project.hasProperty("sonatypeUsername") && project.hasProperty("sonatypePass
     }
 
     signing {
-        useGpgCmd()
         sign(publishing.publications.getByName("mavenJava"))
         isRequired = true
     }
