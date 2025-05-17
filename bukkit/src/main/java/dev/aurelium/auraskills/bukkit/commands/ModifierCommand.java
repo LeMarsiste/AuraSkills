@@ -104,8 +104,27 @@ public class ModifierCommand extends BaseCommand {
     @CommandPermission("auraskills.command.modifier")
     @CommandCompletion("@players @modifiers true")
     @Description("Removes a specific stat modifier from a player.")
-    public void onRemove(CommandSender sender, @Flags("other") Player player, String name, @Default("false") boolean silent) {
+    public void onRemove(CommandSender sender, @Flags("other") String playerUsername, String name, @Default("false") boolean silent) {
+        Player player = null;
+        if (!playerUsername.startsWith("@p"))
+            player = Bukkit.getPlayerExact(playerUsername);
+        else {
+            double closestInt = Double.MAX_VALUE;
+            Entity closest = null;
+            Location senderLocation = locationFromCommandSender(sender);
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                Location playerLocation = p.getLocation();
+                if (playerLocation.distanceSquared(senderLocation) < closestInt){
+                    closestInt = playerLocation.distanceSquared(senderLocation);
+                    player = p;
+                }
+            }
+        }
+
         User user = plugin.getUser(player);
+
+
+
         Locale locale = user.getLocale();
         if (user.removeStatModifier(name)) {
             if (!silent) {
